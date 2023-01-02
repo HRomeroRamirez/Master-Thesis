@@ -1,0 +1,218 @@
+#Hector Romero
+#5/4/2022
+#Master's Thesis Netowork Analysis 
+
+#load packages
+library(igraph)
+library(ggplot2)
+library(tidyverse)
+library(statnet)
+library(readxl)
+library(RColorBrewer)
+library(scales)
+library(stargazer)
+library(Cairo)
+
+#setting up workspace 
+rm(list = ls())
+#------------------------------------------------------------------------------------------------
+
+#####----- Section 1: Forming the Trade Network -------
+
+# 1.1 - Upload adjacency matrix to R
+
+X2011_TechMatrix <- read_excel("Desktop/Data and codes/2011_TechMatrix.xlsx")
+
+nombre = X2011_TechMatrix$...1
+
+X2011_TechMatrix <- as.matrix(X2011_TechMatrix) #coerce into matrix 
+
+X2011_TechMatrix = X2011_TechMatrix[,-1]
+
+X2011_TechMatrix = as.numeric(X2011_TechMatrix)
+
+X2011_TechMatrix= matrix(X2011_TechMatrix, nrow  = 41, byrow = FALSE)
+
+rownames(X2011_TechMatrix) = nombre
+
+colnames(X2011_TechMatrix) = nombre
+
+# 1.2 - Form Directed graph object 
+
+degree = igraph::degree
+delete.vertices = igraph::delete.vertices
+
+network_2011 <- graph_from_adjacency_matrix(X2011_TechMatrix, mode = "directed", diag = F) 
+
+network_2011 <- delete.vertices(network_2011, which(degree(network_2011)==0)) # delete isolated vertices
+
+fruch_layout = layout_with_fr(network_2011) # layout 
+
+# 1.3 - Plot graph to test 
+
+plot(network_2011, layout = fruch_layout) 
+
+
+
+
+
+
+
+#####----- Section 4: Centrality Measures -------
+
+betweenness=igraph::betweenness 
+
+# 4.1 Network Wide Metrics: 
+
+edge_density(network_2011) #print 
+
+network_2011
+
+2*117/(41*(40))
+
+diameter(network_2011, directed = T) #print 
+
+diam <- get.diameter(network_2011, directed = T)
+
+# 4.2 Degree: 
+
+#   4.2.1 - Calculating degrees 
+
+in_degree <- degree(network_2011, mode = "in") 
+
+out_degree <- degree(network_2011, mode = "out") 
+
+all_degree <- degree(network_2011, mode = "all") #
+
+#   4.2.2 Plot with size proportional to Out-Degree 
+
+set.seed(1)
+
+# Change color to region again
+colorscheme <- brewer.pal(7, "Spectral") 
+
+V(network_2011)$color = colorscheme[as.numeric(V(network_2011)$Region)] # One color per region
+
+plot(network_2011,
+     vertex.frame.color = NA,
+     vertex.size = out_degree,
+     vertex.label.cex = .7,
+     edge.arrow.size = .1,
+     edge.width = 2, 
+     layout = fruch_layout,
+     margin = -0.3)
+
+#   4.2.2 Plot with size proportional to In-Degree 
+
+set.seed(1)
+
+plot(network_2011, 
+     vertex.frame.color = NA, 
+     vertex.size = in_degree,
+     vertex.label.cex = .7, 
+     edge.arrow.size = .1,
+     edge.width = 2, 
+     layout = fruch_layout,
+     margin = -0.3)
+
+
+
+
+# 4.3 Betweeness Centrality:
+
+bet_cent <- betweenness(network_2011, directed = T) 
+
+#   4.3.2 - Plot with size proportional to betweeness centrality 
+
+set.seed(1)
+
+plot(network_2011,
+     vertex.frame.color = NA,
+     vertex.size = bet_cent,
+     vertex.label.cex = .7,
+     edge.arrow.size = .1, 
+     edge.width = 2, 
+     layout = fruch_layout,
+     margin = -0.3)
+
+
+#   ALT - Undirected betweeness Centrality
+
+# Create Undirected Network for Community Detection 
+
+undirected_network_2011 <- graph_from_adjacency_matrix(X2011_TechMatrix,
+                                                       mode = "undirected", diag = F) # Undirected Network
+
+
+undirected_network_2011 <- delete.vertices(undirected_network_2011,
+                                           which(degree(undirected_network_2011)==0)) #delete isolated nodes
+
+undirected_bet_cent <- betweenness(undirected_network_2011, directed = F)
+
+undirected_fruch_layout <- layout_with_fr(undirected_network_2011)
+
+# Color
+
+colorscheme <- brewer.pal(7, "Spectral") 
+
+V(network_2011)$color=colorscheme[as.numeric(V(network_2011)$Region)] # One color per region
+
+# Plot network 
+
+set.seed(1)
+
+
+plot(undirected_network_2011, 
+     vertex.frame.color = NA,
+     vertex.size = undirected_bet_cent/10,
+     vertex.label.cex = .7, 
+     edge.arrow.size = .1, 
+     edge.width = 2,
+     layout = undirected_fruch_layout,
+     margin = -0.3)
+
+
+
+
+
+#####----- Section 5: Community Detection and Assortativity -------
+
+# 5.1 - Community Detection using betweeness algorithm
+
+#community detection. Cannot get it to work for directed graph
+
+set.seed(1)
+
+bet_community <- edge.betweenness.community(undirected_network_2011) 
+
+plot(bet_community, undirected_network_2011, 
+     layout = fruch_layout,
+     mARGIN = -0.3)
+#main = "2011 World Trade Network by Communities", 
+#sub = "Communities Detection Based on Edge Betweeness - Newman & Girvan (2004)") 
+
+
+
+
+
+
+
+
+# 5.2 - Assortativity 
+
+#Uploading dataframe with attributes (GPD, Region,etc)
+
+Country_Attributes95 <- read.excel("Desktop/Country_Attributes95.xlsx")
+View(Country_Attributes95)
+
+# 5.2.1 - Assortativity by region
+
+assortativity_nominal(network_1995, V(network_1995)$Region) 
+
+#5.2.2 - Assortativity by GDP
+
+assortativity_nominal(network_1995, V(network_1995)$GDP)
+
+#5.2.3 - Assortativity by Income
+
+assortativity_nominal(network_1995, V(network_1995)$Income) 
